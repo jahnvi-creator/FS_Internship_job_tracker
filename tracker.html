@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Internship Job Tracker</title><link rel="stylesheet" href="style.css">
+</head><body>
+<header><h1>Internship Job Tracker</h1><p>Track your applications from saved to offer</p></header>
+<main>
+<div class="welcome"><strong id="welcome"></strong><button class="secondary small" id="logout">Logout</button></div>
+<section id="stats" class="stats"></section>
+<section class="card wide"><h2>Add an Application</h2>
+<form id="applicationForm">
+<div class="form-row">
+<div><label for="company">Company *</label><input id="company" required></div>
+<div><label for="role">Role *</label><input id="role" required></div>
+</div>
+<div class="form-row">
+<div><label for="location">Location</label><input id="location"></div>
+<div><label for="stipend">Stipend</label><input id="stipend"></div>
+<div><label for="status">Status</label><select id="status"></select></div>
+</div>
+<div class="form-row">
+<div><label for="appliedOn">Applied on</label><input id="appliedOn" type="date"></div>
+<div><label for="deadline">Deadline</label><input id="deadline" type="date"></div>
+<div><label for="link">Application link</label><input id="link" type="url" placeholder="https://"></div>
+</div>
+<label for="notes">Notes</label><textarea id="notes" rows="3"></textarea>
+<button type="submit">Add Application</button><p id="formError" class="error" role="alert"></p>
+</form></section>
+<div class="filters">
+<select id="filterStatus" aria-label="Filter by status"><option value="">All statuses</option></select>
+<input id="search" type="search" placeholder="Search company or role" aria-label="Search">
+</div>
+<section class="card wide"><h2>My Applications</h2><div id="list" class="table-wrap"></div></section>
+</main>
+<script>
+const student = JSON.parse(sessionStorage.getItem("student") || "null");
+if (!student) location.replace("index.html");
+const statuses = ["Saved","Applied","Online Test","Interview","Offer","Rejected"];
+let applications = [];
+const el = id => document.getElementById(id);
+el("welcome").textContent = `Welcome, ${student.name} (${student.rollNo})`;
+function safe(v) { return String(v ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+async function api(url, options={}) {
+ const r=await fetch(url,options); const d=await r.json();
+ if(!r.ok) throw new Error(d.error || "Request failed"); return d;
+}
+async function refresh() {
+ applications=await api(`/api/applications/${encodeURIComponent(student.rollNo)}`);
+ const stats=await api(`/api/stats/${encodeURIComponent(student.rollNo)}`);
+ el("stats").innerHTML=`<div class="stat"><b>${stats.total}</b>Total</div>`+
+ statuses.map(s=>`<div class="stat"><b>${stats.counts[s]||0}</b>${s}</div>`).join("");
+ render();
+}
+function render() {
+ const filter=el("filterStatus").value, q=el("search").value.trim().toLowerCase();
+ const rows=applications.filter(a=>(!filter||a.status===filter)&&(!q||`${a.company} ${a.role}`.toLowerCase().includes(q)));
+ if(!rows.length){el("list").innerHTML='<p class="empty">No applications found.</p>';return;}
+ el("list").innerHTML=`<table><thead><tr><th>Company</th><th>Role</th><th>Deadline</th><th>Status</th><th>Action</th></tr></thead><tbody>`+
+ rows.map(a=>`<tr><td>${safe(a.company)}</td><td>${safe(a.role)}</td><td>${safe(a.deadline||"-")}</td><td>
+ <select data-status="${safe(a.id)}" aria-label="Status for ${safe(a.company)}">${statuses.map(s=>`<option ${s===a.status?"selected":""}>${s}</option>`).join("")}</select></td>
+ <td><button class="small danger" data-delete="${safe(a.id)}" type="button">Delete</button></td></tr>`).join("")+
+ `</tbody></table>`;
+}
+el("applicationForm").addEventListener("submit",async e=>{
+ e.preventDefault();el("formError").textContent="";
+ const val=id=>el(id).value;
+ try {
+  await api("/api/applications",{method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({rollNo:student.rollNo,company:val("company"),role:val("role"),location:val("location"),
+   stipend:val("stipend"),status:val("status"),appliedOn:val("appliedOn"),deadline:val("deadline"),link:val("link"),notes:val("notes")})});
+  e.target.reset(); await refresh();
+ } catch(err){el("formError").textContent=err.message;}
+});
+el("list").addEventListener("change",async e=>{
+ const id=e.target.dataset.status;if(!id)return;
+ try{await api(`/api/applications/${encodeURIComponent(id)}`,{method:"PUT",headers:{"Content-Type":"application/json"},
+ body:JSON.stringify({rollNo:student.rollNo,status:e.target.value})});await refresh();}
+ catch(err){alert(err.message);await refresh();}
+});
+el("list").addEventListener("click",async e=>{
+ const id=e.target.dataset.delete;if(!id||!confirm("Delete this application?"))return;
+ try{await api(`/api/applications/${encodeURIComponent(id)}?rollNo=${encodeURIComponent(student.rollNo)}`,{method:"DELETE"});await refresh();}
+ catch(err){alert(err.message);}
+});
+el("filterStatus").addEventListener("change",render);el("search").addEventListener("input",render);
+el("logout").addEventListener("click",()=>{sessionStorage.removeItem("student");location.href="index.html";});
+el("status").innerHTML=statuses.map(s=>`<option>${s}</option>`).join("");
+el("filterStatus").innerHTML+=statuses.map(s=>`<option>${s}</option>`).join("");
+refresh().catch(err=>el("list").textContent=err.message);
+</script></body></html>

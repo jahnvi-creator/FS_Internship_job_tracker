@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Internship Job Tracker - Register</title><link rel="stylesheet" href="style.css">
+</head><body>
+<header><h1>Internship Job Tracker</h1><p>Keep every internship application organised</p></header>
+<main class="card registration">
+<h2>Student Registration</h2>
+<form id="registrationForm">
+<label for="name">Full Name</label><input id="name" required placeholder="Enter your name">
+<label for="rollNo">Roll Number</label><input id="rollNo" required placeholder="Enter your roll number">
+<button type="submit">Register &amp; Continue</button><p class="error" id="error" role="alert"></p>
+</form></main>
+<script>
+document.getElementById("registrationForm").addEventListener("submit", async e => {
+ e.preventDefault(); const error = document.getElementById("error"); error.textContent = "";
+ try {
+  const r = await fetch("/api/register", {method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({name:document.getElementById("name").value,rollNo:document.getElementById("rollNo").value})});
+  const d = await r.json(); if(!r.ok) throw new Error(d.error || "Registration failed");
+  sessionStorage.setItem("student",JSON.stringify(d.student)); location.href="tracker.html";
+ } catch(err) { error.textContent = err.message; }
+});
+</script></body></html>
